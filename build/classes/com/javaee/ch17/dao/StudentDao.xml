@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.javaee.ch17.dao.StudentDao">
+
+	<insert id="insertStudent" parameterType="student">  <!-- 因已将creationTime设置成默认当前时间所以在insert语句中可不出现该列，由数据库系统填入当前时间 -->
+		insert into Student(userName, password, userRealName, gender, email, contactPhone, address, memo)
+		values(#{userName}, #{password}, #{userRealName}, #{gender}, #{email}, #{contactPhone}, #{address}, #{memo})
+	</insert>
+	<update id="updateStudent" parameterType="student">
+		update Student
+		set password=#{password}, userRealName=#{userRealName}, gender=#{gender}, email=#{email}, contactPhone=#{contactPhone},
+			address=#{address}, memo=#{memo}, lastChangeTime=#{lastChangeTime}, creationTime = #{creationTime}
+		where id=#{id}
+	</update>
+	<delete id="deleteStudent" parameterType="int">
+		delete from Student where id=#{id}
+	</delete>
+
+	<!--根据id查询学生信息 -->
+	<select id="findStudentById" parameterType="int" resultType="student">
+		select * from Student where id = #{id}
+	</select>
+	<select id="manageStudents" resultType="student"> <!-- 因表中存在text这种大文本列，通常是费好多时间取出但又不用(是常态)。所以为节省时间在显示列表时，要剔除这些列。待要显示单个记录时再取出即可。 -->
+		select id, userName, password, userRealName, gender, email, contactPhone, address, creationTime, lastChangeTime  from Student
+	</select>
+	
+	<!-- 不带条件的分页查询 1 查结果集 2 计算总记录数 -->
+
+
+	<!-- 用于添加时，检查unique唯一性约束的字段值已存在的条数 -->
+	<select id="getSameCount" parameterType="fieldExistValidVO" resultType="int">
+		select count(*) from Student
+		<where>
+			<choose> <!-- 类似Java中的switch case default -->
+				<when test='"1" == fieldType'>  <!--fieldType对应值是串型 '1' == fieldType  写成这样是不行的-->
+					userName=#{fieldValue}
+				</when>
+				<when test='"2" == fieldType'> 
+					email=#{fieldValue}
+				</when>					
+				<otherwise> <!-- 能执行到这说明，前面的when都不满足 -->
+					contactPhone=#{fieldValue}
+				</otherwise>		
+			</choose>	
+		</where>
+	</select>	
+	
+	<!-- 用于更新时，检查unique唯一性约束的字段值在别的记录中已存在的条数 -->
+	<select id="getOtherSameCount" parameterType="fieldExistValidVO" resultType="int">
+		select count(*) from Student
+		<where>
+			id !=#{id} and 
+			<choose> <!-- 类似Java中的switch case default -->
+				<when test='"2" == fieldType'>  <!--fieldType对应值是串型 '1' == fieldType  写成这样是不行的-->
+					email=#{fieldValue}
+				</when>	
+				<otherwise> <!-- 能执行到这说明，前面的when都不满足 -->
+					contactPhone=#{fieldValue}
+				</otherwise>		
+			</choose>	
+		</where>
+	</select>			
+	<!-- 不带条件的分页查询 1 查结果集 2 计算总记录数 -->
+    <select id="findStudentsByPage" parameterType="Map" resultType="student">
+        select id, userName, password, userRealName, gender, email, contactPhone, address, creationTime, lastChangeTime 
+        from Student order by id 
+        <if test="start!=null and size!=null">
+            limit #{start}, #{size} <!-- 这个仅对MySQL有效。注：order by不能加在它后面。 -->
+        </if>        
+    </select>
+    <select id="getStudentsCount" resultType="int">
+    	select count(*) from Student
+    </select>
+
+	<select id="findStudentsByConditionPage" parameterType="Map" resultType="student">
+		select * from Student
+		<where>
+			<if test="student.userName !=null and student.userName!=''">  <!-- 且：不能写成&& -->
+				and userName like concat('%', #{student.userName}, '%')
+			</if>
+			<if test="student.userRealName !=null and student.userRealName!=''"> <!-- 除第一个开头的and可省，下面的and不应省略。 -->
+				and userRealName like concat('%', #{student.userRealName}, '%')
+			</if>
+			<if test="student.gender !=null and student.gender!='-1'">
+				and gender=#{student.gender}
+			</if>
+			<if test="student.email !=null and student.email!=''">
+				and email like concat('%', #{student.email}, '%')
+			</if>
+			<if test="student.contactPhone !=null and student.contactPhone!=''">
+				and contactPhone  like concat('%', #{student.contactPhone}, '%')
+			</if>
+			<if test="student.address !=null and student.address!=''">
+				and address  like concat('%', #{student.address}, '%')
+			</if>
+			<!--时间范围查询-->
+			<if test="addTimeStart != null and addTimeEnd != null">
+				and creationTime between #{addTimeStart} and #{addTimeEnd}
+			</if>
+			<if test="changeTimeStart != null and changeTimeEnd != null">
+				and lastChangeTime between #{changeTimeStart} and #{changeTimeEnd}
+			</if>
+
+			<if test="addTimeStart != null and addTimeEnd == null">
+				and creationTime &gt;= #{addTimeStart}
+			</if>
+			<if test="addTimeStart == null and addTimeEnd != null">
+				and creationTime &lt;= #{addTimeEnd}
+			</if>
+
+			<if test="changeTimeStart != null and changeTimeEnd == null">
+				and lastChangeTime &gt;= #{changeTimeStart}
+			</if>
+			<if test="changeTimeStart == null and changeTimeEnd != null">
+				and lastChangeTime &lt;= #{changeTimeEnd}
+			</if>
+		</where>
+		order by id
+		<if test="start!=null and size!=null">
+			limit #{start}, #{size} <!-- 这个仅对MySQL有效。 -->
+		</if>
+	</select>
+	<select id="getStudentsCountByConditionPage" parameterType="map" resultType="int">
+		select count(*) from student
+		<where>
+			<if test="student.userName !=null and student.userName!=''">  <!-- 且：不能写成&& -->
+				and userName like concat('%', #{student.userName}, '%')
+			</if>
+			<if test="student.userRealName !=null and student.userRealName!=''"> <!-- 除第一个开头的and可省，下面的and不应省略。 -->
+				and userRealName like concat('%', #{student.userRealName}, '%')
+			</if>
+			<if test="student.gender !=null and student.gender!='-1'">
+				and gender=#{student.gender}
+			</if>
+			<if test="student.email !=null and student.email!=''">
+				and email like concat('%', #{student.email}, '%')
+			</if>
+			<if test="student.contactPhone !=null and student.contactPhone!=''">
+				and contactPhone  like concat('%', #{student.contactPhone}, '%')
+			</if>
+			<if test="student.address !=null and student.address!=''">
+				and address  like concat('%', #{student.address}, '%')
+			</if>
+
+			<if test="addTimeStart != null and addTimeEnd != null">
+				and creationTime between #{addTimeStart} and #{addTimeEnd}
+			</if>
+			<if test="changeTimeStart != null and changeTimeEnd != null">
+				and lastChangeTime between #{changeTimeStart} and #{changeTimeEnd}
+			</if>
+
+			<if test="addTimeStart != null and addTimeEnd == null">
+				and creationTime &gt;= #{addTimeStart}
+			</if>
+			<if test="addTimeStart == null and addTimeEnd != null">
+				and creationTime &lt;= #{addTimeEnd}
+			</if>
+
+			<if test="changeTimeStart != null and changeTimeEnd == null">
+				and lastChangeTime &gt;= #{changeTimeStart}
+			</if>
+			<if test="changeTimeStart == null and changeTimeEnd != null">
+				and lastChangeTime &lt;= #{changeTimeEnd}
+			</if>
+		</where>
+	</select>
+</mapper>
